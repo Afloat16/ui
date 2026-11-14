@@ -488,11 +488,13 @@ function bindScrollPicker(
       paint()
     }
     const index = selectedIndex()
-    if (index !== -1 && index !== selected && !isBusy()) {
+    if (index !== selected && !isBusy()) {
       // A list whose options bind after it, like custom elements, starts there at once.
       const animate = selected !== -1
       selected = index
-      centerOn(index, animate)
+      if (index !== -1) {
+        centerOn(index, animate)
+      }
     }
   }
 
