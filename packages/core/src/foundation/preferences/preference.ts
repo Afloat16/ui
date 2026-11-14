@@ -157,7 +157,9 @@ function createPreference<const Value extends string>(
     if (synced !== undefined || changed || !storage || storage.readsOnServer) {
       return value
     }
-    peeked ??= storage.get()
+    if (peeked === undefined) {
+      peeked = storage.get()
+    }
     return isValue(peeked) ? peeked : value
   }
 
