@@ -107,7 +107,10 @@ function canWrite(area: Storage) {
     return true
   }
   try {
-    const probe = "__ui-sdk-storage__"
+    let probe = "__ui-sdk-storage__"
+    while (area.getItem(probe) !== null) {
+      probe += "_"
+    }
     area.setItem(probe, probe)
     area.removeItem(probe)
     writable.add(area)
