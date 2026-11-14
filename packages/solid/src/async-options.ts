@@ -30,7 +30,7 @@ function useAsyncOptions<Item>(
   const initial = helper.getState()
   // Written from the helper's listeners, which can fire inside a disposal.
   const [state, setState] = createSignal<AsyncOptionsState<Item>>(
-    immediate ? { ...initial, status: "loading" } : initial,
+    immediate && !now ? { ...initial, status: "loading" } : initial,
     { ownedWrite: true }
   )
   onCleanup(helper.subscribe(() => setState(helper.getState())))
