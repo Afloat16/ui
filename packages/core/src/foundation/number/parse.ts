@@ -19,6 +19,7 @@ type Symbols = {
   digits: Map<string, string>
   // Divides parsed values, like 100 for percents, which format 0.5 as 50%.
   divisor: number
+  nameFormatter?: Intl.NumberFormat
 }
 
 const symbolCache = new Map<string, Symbols>()
@@ -73,6 +74,10 @@ function symbolsOf(
     strip: [...new Set(strip)].sort((a, b) => b.length - a.length),
     digits,
     divisor: options.style === "percent" ? 100 : 1,
+    nameFormatter:
+      options.style === "unit" || options.currencyDisplay === "name"
+        ? formatter
+        : undefined,
   }
   symbolCache.set(key, symbols)
   return symbols
@@ -82,7 +87,7 @@ function symbolsOf(
 const parenthesized = /^\s*\(.*\)\s*$/
 
 // Text reduced to ASCII digits, one "-", and "." as the decimal separator.
-function normalize(text: string, symbols: Symbols) {
+function normalize(text: string, symbols: Symbols, strip = symbols.strip) {
   let result = text
     .replace(formatCharacters, "")
     .replace(minusSigns, "-")
@@ -91,7 +96,7 @@ function normalize(text: string, symbols: Symbols) {
   result = Array.from(result, (char) => symbols.digits.get(char) ?? char).join(
     ""
   )
-  for (const symbol of symbols.strip) {
+  for (const symbol of strip) {
     result = result.split(symbol).join("")
   }
   const groupIsSpace = symbols.group.trim() === ""
@@ -120,6 +125,27 @@ function normalize(text: string, symbols: Symbols) {
 const complete = /^-?(\d+\.?\d*|\.\d+)$/
 const partial = /^-?\d*\.?\d*$/
 
+function normalizeNumber(text: string, symbols: Symbols) {
+  const normalized = normalize(text, symbols)
+  if (partial.test(normalized) || !symbols.nameFormatter) {
+    return normalized
+  }
+  const numbers = normalized.match(/-?(\d+\.?\d*|\.\d+)/g)
+  if (numbers?.length !== 1 || !Number.isFinite(Number(numbers[0]))) {
+    return normalized
+  }
+  // A unit or currency name can use a plural form absent from the samples.
+  const affixes = symbols.nameFormatter
+    .formatToParts(Number(numbers[0]))
+    .filter((part) => ["currency", "unit", "literal"].includes(part.type))
+    .map((part) => part.value.trim())
+    .filter(Boolean)
+  const strip = [...new Set([...symbols.strip, ...affixes])].sort(
+    (a, b) => b.length - a.length
+  )
+  return normalize(text, symbols, strip)
+}
+
 /**
  * Reads a number typed in a locale's format: its digits, group and decimal
  * separators, minus signs, and currency, percent and unit text. Percent
@@ -132,7 +158,7 @@ function parseNumber(
   format?: Intl.NumberFormatOptions
 ) {
   const symbols = symbolsOf(locale, format ?? {})
-  const normalized = normalize(text, symbols)
+  const normalized = normalizeNumber(text, symbols)
   if (!complete.test(normalized)) {
     return null
   }
@@ -153,7 +179,7 @@ function isPartialNumber(
   format?: Intl.NumberFormatOptions,
   { allowNegative = true } = {}
 ) {
-  const normalized = normalize(text, symbolsOf(locale, format ?? {}))
+  const normalized = normalizeNumber(text, symbolsOf(locale, format ?? {}))
   if (!partial.test(normalized)) {
     return false
   }
