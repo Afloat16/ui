@@ -123,6 +123,7 @@ const keyNames: Record<string, string> = {
   esc: "Escape",
   tab: "Tab",
   space: "Space",
+  plus: "Plus",
   up: "ArrowUp",
   down: "ArrowDown",
   left: "ArrowLeft",
@@ -211,6 +212,9 @@ function matchesKey(event: KeyboardEvent, key: string) {
   const typed = event.key.length === 1 ? event.key.toLowerCase() : event.key
   if (key === "Space") {
     return typed === " "
+  }
+  if (key === "Plus") {
+    return typed === "+"
   }
   if (!/^[A-Z0-9]$/.test(key)) {
     return typed.toLowerCase() === key.toLowerCase()
