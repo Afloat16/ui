@@ -132,14 +132,15 @@ function transferred(
   list: string,
   index: number
 ) {
-  const next: TransferLists = {}
-  for (const [name, keys] of Object.entries(lists)) {
-    next[name] = keys.filter((k) => k !== key)
-  }
-  const target = [...(next[list] ?? [])]
+  const next: TransferLists = Object.fromEntries(
+    Object.entries(lists).map(([name, keys]) => [
+      name,
+      keys.filter((k) => k !== key),
+    ])
+  )
+  const target = [...(Object.hasOwn(next, list) ? next[list] : [])]
   target.splice(Math.max(0, Math.min(target.length, index)), 0, key)
-  next[list] = target
-  return next
+  return { ...next, [list]: target }
 }
 
 const listWith = (lists: TransferLists, key: string) =>
@@ -151,6 +152,7 @@ const sameLists = (a: TransferLists, b: TransferLists) => {
     keys.length === Object.keys(b).length &&
     keys.every(
       (list) =>
+        Object.hasOwn(b, list) &&
         a[list].length === b[list]?.length &&
         a[list].every((key, i) => b[list][i] === key)
     )
@@ -201,7 +203,7 @@ function createTransfer<State extends object>(
       }
       const list = listWith(current.lists, current.key)!
       if (
-        !now[list] ||
+        !Object.hasOwn(now, list) ||
         (list !== from &&
           options.accepts &&
           !options.accepts(current.key, list))
@@ -324,7 +326,9 @@ function createTransfer<State extends object>(
       if (!current || list === undefined) {
         return
       }
-      const others = (current.lists[list] ?? []).filter((k) => k !== key)
+      const others = (
+        Object.hasOwn(current.lists, list) ? current.lists[list] : []
+      ).filter((k) => k !== key)
       const middles = others.map((k) => {
         const rect = items.get(k)?.getBoundingClientRect()
         return rect ? rect.top + rect.height / 2 : 0

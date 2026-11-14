@@ -575,6 +575,145 @@ describe("createTransfer", () => {
     }),
   })
 
+  test.each(["__proto__", "constructor", "toString", "backlog"])(
+    "preserves the own list named %s when moving cards into and out of it",
+    (name) => {
+      const original = Object.fromEntries([
+        [name, ["b"]],
+        ["todo", ["a"]],
+        ["done", []],
+      ])
+      const instance = board({ id: "k", lists: original })
+      cleanups.push(() => instance.destroy())
+      const { transfer } = instance.api
+      expect(transfer.move("a", name, 1)).toBe(true)
+      expect(Object.keys(instance.get().lists)).toEqual([name, "todo", "done"])
+      expect(instance.get().lists[name]).toEqual(["b", "a"])
+      expect(transfer.move("b", "done", 0)).toBe(true)
+      expect(instance.get().lists[name]).toEqual(["a"])
+      expect(instance.get().lists.done).toEqual(["b"])
+      expect(Object.getPrototypeOf(instance.get().lists)).toBe(Object.prototype)
+      expect(JSON.parse(JSON.stringify(instance.get().lists))[name]).toEqual([
+        "a",
+      ])
+      expect(original[name]).toEqual(["b"])
+      expect(original.todo).toEqual(["a"])
+    }
+  )
+
+  test.each(["__proto__", "constructor", "toString", "backlog"])(
+    "creates an own destination named %s through imperative move",
+    (name) => {
+      const instance = board({ id: "k", lists: { todo: ["a", "b"] } })
+      cleanups.push(() => instance.destroy())
+      expect(instance.api.transfer.move("a", name, 0)).toBe(true)
+      expect(Object.hasOwn(instance.get().lists, name)).toBe(true)
+      expect(instance.get().lists[name]).toEqual(["a"])
+      expect(instance.get().lists.todo).toEqual(["b"])
+      expect(Object.getPrototypeOf(instance.get().lists)).toBe(Object.prototype)
+      expect(instance.api.set.mock.calls[0][1]).toMatchObject({
+        key: "a",
+        from: "todo",
+        to: name,
+        index: 0,
+      })
+    }
+  )
+
+  test.each(["__proto__", "constructor", "toString", "backlog"])(
+    "cancels a draft when its own destination %s is removed",
+    (name) => {
+      const instance = board({ id: "k", lists: { todo: ["a"], [name]: [] } })
+      cleanups.push(() => instance.destroy())
+      const { transfer, set } = instance.api
+      expect(transfer.grab("a")).toBe(true)
+      expect(transfer.moveTo(name, 0)).toBe(true)
+      instance.setOptions({ id: "k", lists: { todo: ["a"] } })
+      expect(instance.get().moving).toBeNull()
+      expect(instance.get().lists).toEqual({ todo: ["a"] })
+      transfer.drop()
+      expect(set).not.toHaveBeenCalled()
+    }
+  )
+
+  test("keeps a prototype-named list navigable through keyboard transfer", () => {
+    const instance = board({
+      id: "k",
+      lists: { todo: ["a"], ["__proto__"]: ["b"], done: [] },
+    })
+    cleanups.push(() => instance.destroy())
+    const { transfer, set } = instance.api
+    transfer.keydown(key(" "), "a")
+    transfer.keydown(key("ArrowRight"), "a")
+    expect(transfer.lists(instance.get())["__proto__"]).toEqual(["a", "b"])
+    transfer.keydown(key("ArrowRight"), "a")
+    expect(transfer.lists(instance.get()).done).toEqual(["a"])
+    transfer.keydown(key("Enter"), "a")
+    expect(instance.get().lists["__proto__"]).toEqual(["b"])
+    expect(instance.get().lists.done).toEqual(["a"])
+    expect(Object.keys(instance.get().lists)).toEqual([
+      "todo",
+      "__proto__",
+      "done",
+    ])
+    expect(set).toHaveBeenCalledTimes(1)
+  })
+
+  test.each(["toString", "constructor", "__proto__", "backlog"])(
+    "keeps an owner's replacement empty column named %s in an unmoved draft",
+    (name) => {
+      const instance = board({ id: "k", lists: { todo: ["a"], old: [] } })
+      cleanups.push(() => instance.destroy())
+      const { transfer, set } = instance.api
+      transfer.grab("a")
+      const lists = { todo: ["a"], [name]: [] }
+      instance.setOptions({ id: "k", lists })
+      expect(Object.keys(transfer.lists(instance.get()))).toEqual([
+        "todo",
+        name,
+      ])
+      transfer.drop()
+      expect(set).not.toHaveBeenCalled()
+      expect(instance.get().lists).toEqual(lists)
+    }
+  )
+
+  test.each(["toString", "constructor", "__proto__", "backlog"])(
+    "handles a pointer reaching a bound destination %s missing from owner state",
+    async (name) => {
+      const instance = board({ id: "k", lists: { todo: ["a"] } })
+      cleanups.push(() => instance.destroy())
+      const { transfer, set } = instance.api
+      const source = rectBox(0, 0, 100, 200)
+      const destination = rectBox(120, 0, 100, 200)
+      const card = rectBox(0, 0, 100, 40, source)
+      const errors: unknown[] = []
+      const onError = (event: ErrorEvent) => {
+        errors.push(event.error)
+        event.preventDefault()
+      }
+      window.addEventListener("error", onError)
+      document.elementsFromPoint = () => []
+      cleanups.push(
+        transfer.bindList(source, "todo"),
+        transfer.bindList(destination, name),
+        transfer.bindItem(card, "a"),
+        () => window.removeEventListener("error", onError),
+        () => delete (document as Partial<Document>).elementsFromPoint
+      )
+      transfer.pointerdown(pointer("pointerdown", 50, 20), "a")
+      document.dispatchEvent(pointer("pointermove", 60, 20))
+      await frame()
+      document.dispatchEvent(pointer("pointermove", 170, 20))
+      await frame()
+      document.dispatchEvent(pointer("pointerup", 170, 20))
+      expect(errors).toEqual([])
+      expect(instance.get().moving).toBeNull()
+      expect(instance.get().lists).toEqual({ todo: ["a"] })
+      expect(set).not.toHaveBeenCalled()
+    }
+  )
+
   test("Space picks up, arrows move within and across lists, Space drops in one change", () => {
     const instance = board({
       id: "k",
