@@ -83,6 +83,8 @@ function createAsyncOptions<Item>(
   let timer: ReturnType<typeof setTimeout> | undefined
   let controller: AbortController | undefined
   let page = 0
+  let loadedQuery = query
+  let loadedHasMore = false
 
   function set(patch: Partial<AsyncOptionsState<Item>>) {
     state = { ...state, ...patch }
@@ -110,6 +112,8 @@ function createAsyncOptions<Item>(
         controller = undefined
         const items = Array.isArray(result) ? result : result.items
         const hasMore = !Array.isArray(result) && !!result.hasMore
+        loadedQuery = state.query
+        loadedHasMore = hasMore
         set({
           items: next === 0 ? items : [...state.items, ...items],
           status: "idle",
@@ -151,7 +155,12 @@ function createAsyncOptions<Item>(
       cancel()
       // Loading from the first key press: while typing pauses, the last
       // items aren't an answer to the new text, so nothing says "no match".
-      set({ query: next, status: "loading", error: undefined })
+      set({
+        query: next,
+        status: "loading",
+        error: undefined,
+        hasMore: next === loadedQuery && loadedHasMore,
+      })
       timer = setTimeout(() => {
         timer = undefined
         run(0)
