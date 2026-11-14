@@ -32,7 +32,7 @@ import { type Listbox } from "../../foundation/lists/listbox"
 import { noListing } from "../../foundation/lists/listbox-listing"
 import { isDisabled } from "../../foundation/lists/listbox-parts"
 import { listKeyDown } from "../../foundation/lists/listbox-keyboard"
-import { opensIntoList } from "../../foundation/lists/listbox-search"
+import { matchMode, opensIntoList } from "../../foundation/lists/listbox-search"
 import { deriveFromOptions } from "../../foundation/kernel/derive"
 import { on } from "../../foundation/kernel/events"
 import type { PrimitiveContext } from "../../foundation/kernel/primitive-types"
@@ -46,6 +46,7 @@ type AutocompleteState = PopupState &
     // What the user typed, which filters the list. It differs from the value
     // while an inline completion or a highlighted suggestion fills the field.
     query: string
+    matchMode: ReturnType<typeof matchMode>
     // The value a form reset returns to.
     initial: string
     listed: boolean
@@ -73,6 +74,7 @@ function initialAutocompleteState(
     ...popupState(options),
     value,
     query: value,
+    matchMode: matchMode(options.filter ?? "contains"),
     initial: options.defaultValue ?? "",
     highlighted: null,
     items: options.items,
@@ -97,6 +99,7 @@ function initialAutocompleteState(
 
 function syncAutocompleteState(options: AutocompleteOptions) {
   return {
+    matchMode: matchMode(options.filter ?? "contains"),
     items: options.items,
     status: options.status ?? "idle",
     inline: !!options.inlineComplete,
@@ -487,6 +490,7 @@ function autocompleteApiBody(
     // Internal. Used by slots and adapters.
     internal: {
       ...core,
+      matchMode: () => store.get().matchMode,
       options,
       popup,
       presentation,

@@ -118,6 +118,7 @@ const unreadByItems = {
   initial: [],
   trigger: [],
   query: [],
+  matchMode: [],
   dirty: [],
   status: [],
   listed: [],

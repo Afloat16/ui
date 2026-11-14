@@ -62,7 +62,7 @@ type ListItemTextProps = {
 }
 
 // How a filter marks matches, or undefined for one that can't say, like a function.
-function matchMode(filter: ListFilter<unknown> | "fuzzy" | undefined) {
+function matchMode<T>(filter: ListFilter<T> | "fuzzy" | undefined) {
   return filter === "contains" || filter === "startsWith" || filter === "fuzzy"
     ? filter
     : undefined
@@ -83,31 +83,45 @@ const unmatched = (text: string) => ({
 })
 
 // An item's text, split where the query matched, so the parts can be marked.
-// The same text and query give the same state object, so a part that reads it
-// only renders again when its marks change.
+// The same text, query and match mode give the same state object, so a part
+// that reads it only renders again when its marks change.
 function itemTextPart<State extends object, Api extends ItemTextApi>() {
   const memo = new WeakMap<
     object,
-    Map<string, { text: string; query: string; state: ListItemTextState }>
+    Map<
+      string,
+      {
+        text: string
+        query: string
+        mode: ReturnType<typeof matchMode>
+        state: ListItemTextState
+      }
+    >
   >()
   const stateOf = (api: Api, key: string, text: string) => {
-    const { matchQuery, matchMode: mode } = api.internal
-    const query = mode() ? matchQuery() : ""
+    const { matchQuery, matchMode } = api.internal
+    const mode = matchMode()
+    const query = mode ? matchQuery() : ""
     let cache = memo.get(api)
     if (!cache) {
       memo.set(api, (cache = new Map()))
     }
     const last = cache.get(key)
-    if (last && last.text === text && last.query === query) {
+    if (
+      last &&
+      last.text === text &&
+      last.query === query &&
+      last.mode === mode
+    ) {
       return last.state
     }
-    const ranges = query.trim() ? matchRanges(text, query, mode()!) : []
+    const ranges = query.trim() ? matchRanges(text, query, mode!) : []
     const state = ranges.length
       ? { segments: matchSegments(text, ranges), matched: true }
       : last && !last.state.matched && last.text === text
         ? last.state
         : unmatched(text)
-    cache.set(key, { text, query, state })
+    cache.set(key, { text, query, mode, state })
     return state
   }
   return {

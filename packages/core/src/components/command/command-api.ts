@@ -20,6 +20,7 @@ import {
 import { commandShortcuts, findCommand, pageItems } from "./command-data"
 import { initialApple } from "../../foundation/platform/platform"
 import { noListing } from "../../foundation/lists/listbox-listing"
+import { matchMode } from "../../foundation/lists/listbox-search"
 import { announcePending, isPromise } from "../../foundation/kernel/action"
 import { selectEvent } from "../../foundation/kernel/events"
 import type { PrimitiveContext } from "../../foundation/kernel/primitive-types"
@@ -37,6 +38,7 @@ type CommandStore = Omit<AutocompleteCoreState, "items"> & {
   // The highlighted command's value, which is its key. The highlight follows it.
   value: string | null
   query: string
+  matchMode: ReturnType<typeof matchMode>
   pages: string[]
   // The search text of each page below the current one, put back on the way back.
   queries: string[]
@@ -67,6 +69,7 @@ function initialCommandState(options: CommandOptions): CommandStore {
         : (options.defaultValue ?? null),
     highlighted: null,
     query: options.query ?? options.defaultQuery ?? "",
+    matchMode: matchMode(options.filter ?? "fuzzy"),
     pages: options.pages ?? options.defaultPages ?? [],
     queries: [],
     items: options.items,
@@ -85,6 +88,7 @@ function initialCommandState(options: CommandOptions): CommandStore {
 
 function syncCommandState(options: CommandOptions) {
   return {
+    matchMode: matchMode(options.filter ?? "fuzzy"),
     items: options.items,
     status: options.status ?? "idle",
     ...(options.value === undefined ? {} : { value: options.value }),
@@ -423,6 +427,7 @@ function commandApiBody(
     // Internal. Used by slots and adapters.
     internal: {
       ...core,
+      matchMode: () => store.get().matchMode,
       options,
       itemProps,
       run,

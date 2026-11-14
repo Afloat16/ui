@@ -60,6 +60,7 @@ const unreadByItems = {
   open: [],
   value: [],
   query: [],
+  matchMode: [],
   queries: [],
   items: [],
   status: [],

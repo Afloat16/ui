@@ -72,6 +72,7 @@ type ComboboxState = PopupState & {
   initial: unknown
   highlighted: string | null
   query: string
+  matchMode: ReturnType<typeof matchMode>
   // Typed since the last choice, so the list filters. A single combobox shows
   // its value's label without filtering until the user types.
   dirty: boolean
@@ -158,6 +159,7 @@ function initialComboboxState(
     trigger: null,
     query:
       options.query ?? options.defaultQuery ?? initialQuery(options, value),
+    matchMode: matchMode(options.filter ?? "contains"),
     dirty: false,
     status: options.status ?? "idle",
     listed: false,
@@ -193,6 +195,7 @@ function initialComboboxState(
 
 function syncComboboxState(options: ComboboxOptions<any, any>) {
   return {
+    matchMode: matchMode(options.filter ?? "contains"),
     multiple: !!options.multiple,
     maxSelected: options.maxSelected,
     disabled: !!options.disabled,
@@ -882,7 +885,7 @@ function comboboxApiBody(
       loadMore,
       limit: () => (store.get().multiple ? store.get().maxSelected : undefined),
       matchQuery: filterQuery,
-      matchMode: () => matchMode(options().filter ?? "contains"),
+      matchMode: () => store.get().matchMode,
       // The pointer highlights what it moves onto. Touch never does, since a finger scrolling past isn't choosing.
       hover(key: string, event: PointerEvent) {
         if (
