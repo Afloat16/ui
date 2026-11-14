@@ -102,28 +102,33 @@ function createAsyncOptions<Item>(
     controller = current
     page = next
     set({ status: "loading", error: undefined })
-    load(state.query, { signal: current.signal, page: next }).then(
-      (result) => {
-        if (current.signal.aborted) {
-          return
-        }
-        controller = undefined
-        const items = Array.isArray(result) ? result : result.items
-        const hasMore = !Array.isArray(result) && !!result.hasMore
-        set({
-          items: next === 0 ? items : [...state.items, ...items],
-          status: "idle",
-          hasMore,
-        })
-      },
-      (error) => {
-        if (current.signal.aborted) {
-          return
-        }
-        controller = undefined
-        set({ status: "error", error })
+    const failed = (error: unknown) => {
+      if (current.signal.aborted) {
+        return
       }
-    )
+      controller = undefined
+      set({ status: "error", error })
+    }
+    try {
+      load(state.query, { signal: current.signal, page: next }).then(
+        (result) => {
+          if (current.signal.aborted) {
+            return
+          }
+          controller = undefined
+          const items = Array.isArray(result) ? result : result.items
+          const hasMore = !Array.isArray(result) && !!result.hasMore
+          set({
+            items: next === 0 ? items : [...state.items, ...items],
+            status: "idle",
+            hasMore,
+          })
+        },
+        failed
+      )
+    } catch (error) {
+      failed(error)
+    }
   }
 
   if (immediate) {
