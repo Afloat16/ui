@@ -113,7 +113,7 @@ function parseDate(
   options: { referenceDate?: ISODate } = {}
 ) {
   const normalized = toLatinDigits(
-    text.replace(directionMarks, "").trim(),
+    text.normalize("NFC").replace(directionMarks, "").trim(),
     locale
   )
   if (!normalized) {
@@ -131,7 +131,7 @@ function parseDate(
   const numbers: string[] = []
   for (const token of normalized
     .toLocaleLowerCase(locale)
-    .match(/\p{N}+|\p{L}+/gu) ?? []) {
+    .match(/\p{N}+|[\p{L}\p{M}]+/gu) ?? []) {
     if (/^\d+$/.test(token)) {
       numbers.push(token)
       continue
@@ -250,7 +250,10 @@ function monthFromName(word: string, locale: string | undefined) {
 function monthLookup(locale: string | undefined) {
   const lookup = new Map<string, number>()
   const add = (name: string, month: number) =>
-    lookup.set(name.toLocaleLowerCase(locale).replace(/\.$/, ""), month)
+    lookup.set(
+      name.normalize("NFC").toLocaleLowerCase(locale).replace(/\.$/, ""),
+      month
+    )
   for (const width of ["long", "short"] as const) {
     monthNames(locale, width).forEach((name, index) => add(name, index + 1))
     // Inside a date, some languages use another form: "16 января", not "январь".
@@ -286,8 +289,9 @@ function isPatternWord(word: string, locale: string | undefined) {
       )) {
         if (part.type === "literal") {
           for (const literal of part.value
+            .normalize("NFC")
             .toLocaleLowerCase(locale)
-            .match(/\p{L}+/gu) ?? []) {
+            .match(/[\p{L}\p{M}]+/gu) ?? []) {
             words.add(literal)
           }
         }
@@ -295,7 +299,9 @@ function isPatternWord(word: string, locale: string | undefined) {
     }
     for (const width of ["long", "short"] as const) {
       for (const name of weekdayNames(locale, width)) {
-        words.add(name.toLocaleLowerCase(locale).replace(/\.$/, ""))
+        words.add(
+          name.normalize("NFC").toLocaleLowerCase(locale).replace(/\.$/, "")
+        )
       }
     }
     patternWords.set(key, words)

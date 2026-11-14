@@ -371,6 +371,19 @@ describe("typing a date", () => {
     expect(parseDate("Friday, October 16, 2026", "en-US")).toBe("2026-10-16")
   })
 
+  test.each(["hi-IN", "bn-IN", "ta-IN", "mr-IN"])(
+    "reads month and weekday names with combining marks in %s",
+    (locale) => {
+      const shown = formatDate("2026-02-16", locale)
+      expect(parseDate(shown, locale)).toBe("2026-02-16")
+    }
+  )
+
+  test("reads canonically equivalent month names", () => {
+    const shown = formatDate("2026-08-16", "fr-FR")
+    expect(parseDate(shown.normalize("NFD"), "fr-FR")).toBe("2026-08-16")
+  })
+
   test("reads the words some locales write between numbers", () => {
     expect(parseDate("2026年10月16日", "ja")).toBe("2026-10-16")
     expect(parseDate("2026년 10월 16일", "ko")).toBe("2026-10-16")
