@@ -10,6 +10,29 @@ const tokens = (value: (string | Token)[]) =>
 
 beforeAll(() => setAnnouncer(() => {}))
 
+test.each([0, 1])(
+  "a live history limit of %s applies after the next token input edit",
+  (limit) => {
+    const instance = tokenInput({ id: "limited", history: { limit: 10 } })
+    try {
+      for (const value of ["one", "two", "three", "four"]) {
+        instance.api.setValue([value])
+      }
+      instance.setOptions({ id: "limited", history: { limit } })
+      instance.api.setValue(["five"])
+      if (limit === 1) {
+        expect(instance.api.undo()).toBe(true)
+        expect(instance.api.getValue()).toEqual(["four"])
+      }
+      expect(instance.api.canUndo()).toBe(false)
+      expect(instance.api.undo()).toBe(false)
+      expect(instance.api.getValue()).toEqual([limit === 1 ? "four" : "five"])
+    } finally {
+      instance.destroy()
+    }
+  }
+)
+
 describe("pending tokens", () => {
   test("a token removed while it loads comes back settled on undo", async () => {
     const instance = tokenInput({ id: "x" })

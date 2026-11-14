@@ -288,6 +288,94 @@ describe("createUndoStack", () => {
     expect(stack.undo()).toBeUndefined()
   })
 
+  test.each([0, 1, 2])(
+    "a reduced limit of %s drops every excess entry on the next edit",
+    (limit) => {
+      const options = { limit: 10 }
+      const stack = createUndoStack(0, () => options)
+      for (let value = 1; value <= 4; value++) {
+        stack.record(value)
+      }
+      options.limit = limit
+      stack.record(5)
+      for (let step = 1; step <= limit; step++) {
+        expect(stack.undo()).toBe(5 - step)
+      }
+      expect(stack.canUndo()).toBe(false)
+      expect(stack.undo()).toBeUndefined()
+      for (let step = limit; step > 0; step--) {
+        expect(stack.redo()).toBe(6 - step)
+      }
+      expect(stack.canRedo()).toBe(false)
+    }
+  )
+
+  test.each([0, 1, 2])(
+    "a reduced limit of %s applies while edits still join an open group",
+    (limit) => {
+      const options = { limit: 10 }
+      const stack = createUndoStack(0, () => options)
+      for (let value = 1; value <= 4; value++) {
+        stack.record(value, { group: "insert", time: value * 1000 })
+      }
+      options.limit = limit
+      stack.record(5, { group: "insert", time: 4100 })
+      for (let step = 1; step <= limit; step++) {
+        expect(stack.undo()).toBe(4 - step)
+      }
+      expect(stack.canUndo()).toBe(false)
+      expect(stack.undo()).toBeUndefined()
+      for (let step = limit; step > 0; step--) {
+        expect(stack.redo()).toBe(step === 1 ? 5 : 5 - step)
+      }
+      expect(stack.canRedo()).toBe(false)
+    }
+  )
+
+  test("raising the limit keeps newly recorded entries without restoring discarded ones", () => {
+    const options = { limit: 1 }
+    const stack = createUndoStack(0, () => options)
+    stack.record(1)
+    stack.record(2)
+    options.limit = 3
+    stack.record(3)
+    stack.record(4)
+    expect([stack.undo(), stack.undo(), stack.undo()]).toEqual([3, 2, 1])
+    expect(stack.undo()).toBeUndefined()
+  })
+
+  test.each([-1, 1.5])(
+    "a fixed limit of %s retains its existing whole-step behavior",
+    (limit) => {
+      const stack = createUndoStack(0, { limit })
+      for (let value = 1; value <= 4; value++) {
+        stack.record(value)
+      }
+      if (limit > 0) {
+        expect(stack.undo()).toBe(3)
+        expect(stack.redo()).toBe(4)
+        expect(stack.undo()).toBe(3)
+      }
+      expect(stack.canUndo()).toBe(false)
+      expect(stack.undo()).toBeUndefined()
+    }
+  )
+
+  test("a smaller limit keeps only the edited branch after undo", () => {
+    const options = { limit: 10 }
+    const stack = createUndoStack(0, () => options)
+    for (let value = 1; value <= 4; value++) {
+      stack.record(value)
+    }
+    expect(stack.undo()).toBe(3)
+    options.limit = 1
+    stack.record(9)
+    expect(stack.canRedo()).toBe(false)
+    expect(stack.undo()).toBe(3)
+    expect(stack.canUndo()).toBe(false)
+    expect(stack.redo()).toBe(9)
+  })
+
   test("map rewrites every entry without adding one", () => {
     const stack = createUndoStack("a")
     stack.record("b")

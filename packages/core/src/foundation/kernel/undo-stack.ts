@@ -66,11 +66,12 @@ function createUndoStack<State>(
         entries[index] = state
       } else {
         entries.push(state)
-        if (entries.length > limit + 1) {
-          entries.shift()
-        }
-        index = entries.length - 1
       }
+      const capacity = Math.max(1, Math.floor(limit + 1))
+      if (entries.length > capacity) {
+        entries.splice(0, entries.length - capacity)
+      }
+      index = entries.length - 1
       open = group ? { group, time } : null
     },
     /** Ends the open group, so the next edit starts an entry, like after a caret jump. */
