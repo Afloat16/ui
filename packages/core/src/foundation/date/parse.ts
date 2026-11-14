@@ -38,6 +38,7 @@ const numericDate: Intl.DateTimeFormatOptions = {
 }
 
 const patterns = new Map<string, DatePattern>()
+const namedDateFields = new Map<string, DateField[]>()
 
 /**
  * How a locale writes a date in numbers: its field order, separator, a placeholder and an example.
@@ -146,12 +147,21 @@ function parseDate(
 
   const values: Partial<Record<DateField, string>> = {}
   if (namedMonth !== undefined) {
-    const rest = fields.filter((field) => field !== "month")
     if (numbers.length > 2 || numbers.length === 0) {
       return undefined
     }
+    const key = locale ?? ""
+    let yearAndDay = namedDateFields.get(key)
+    if (!yearAndDay) {
+      yearAndDay = dateFormatter(locale, { ...numericDate, month: "long" })
+        .formatToParts(Date.UTC(2026, 0, 16))
+        .flatMap(({ type }) =>
+          type === "year" || type === "day" ? [type] : []
+        )
+      namedDateFields.set(key, yearAndDay)
+    }
     // With one number beside the name, it's the day: "October 16".
-    const order = numbers.length === 1 ? ["day" as const] : rest
+    const order = numbers.length === 1 ? ["day" as const] : yearAndDay
     order.forEach((field, index) => (values[field] = numbers[index]))
     values.month = String(namedMonth)
   } else if (numbers.length === 1) {
@@ -280,6 +290,8 @@ function isPatternWord(word: string, locale: string | undefined) {
     for (const options of [
       { dateStyle: "short" },
       { dateStyle: "long" },
+      { year: "numeric", month: "short", day: "numeric" },
+      { year: "numeric", month: "long", day: "numeric" },
     ] as const) {
       for (const part of dateFormatter(locale, options).formatToParts(
         Date.UTC(2026, 9, 16)

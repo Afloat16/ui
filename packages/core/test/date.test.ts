@@ -367,6 +367,55 @@ describe("typing a date", () => {
     )
   })
 
+  test.each(["en-CA", "lv-LV"])(
+    "reads named months in their own field order in %s",
+    (locale) => {
+      for (const month of ["short", "long"] as const) {
+        for (const date of ["2026-02-16", "2027-10-03"] as const) {
+          const shown = formatDate(date, locale, {
+            year: "numeric",
+            month,
+            day: "numeric",
+          })
+          expect(parseDate(shown, locale)).toBe(date)
+        }
+      }
+    }
+  )
+
+  test.each(["en-CA", "lv-LV"])(
+    "keeps numeric date order after reading a named month in %s",
+    (locale) => {
+      const named = formatDate("2026-10-16", locale, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+      parseDate(named, locale)
+      const numeric = formatDate("2026-10-16", locale, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+      expect(parseDate(numeric, locale)).toBe("2026-10-16")
+    }
+  )
+
+  test.each(["en-US", "en-GB", "de-DE", "fr-FR", "ru-RU"])(
+    "keeps existing named date order and the reference year in %s",
+    (locale) => {
+      const date = "2026-10-16"
+      expect(parseDate(formatDate(date, locale), locale)).toBe(date)
+      const withoutYear = formatDate(date, locale, {
+        month: "long",
+        day: "numeric",
+      })
+      expect(
+        parseDate(withoutYear, locale, { referenceDate: "2026-01-01" })
+      ).toBe(date)
+    }
+  )
+
   test("reads a pasted label with its weekday", () => {
     expect(parseDate("Friday, October 16, 2026", "en-US")).toBe("2026-10-16")
   })
