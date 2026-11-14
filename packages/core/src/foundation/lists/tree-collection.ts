@@ -86,10 +86,17 @@ function createTreeCollection(nodes: Iterable<TreeCollectionNode>) {
     enter: (key: string) => boolean,
     into: string[]
   ) {
-    for (const child of children(key)) {
+    const pending = [{ list: children(key), index: 0 }]
+    while (pending.length) {
+      const current = pending[pending.length - 1]
+      if (current.index === current.list.length) {
+        pending.pop()
+        continue
+      }
+      const child = current.list[current.index++]
       into.push(child)
       if (enter(child)) {
-        walk(child, enter, into)
+        pending.push({ list: children(child), index: 0 })
       }
     }
     return into
@@ -174,20 +181,14 @@ type TreeItemData = {
  */
 function treeDataNodes(items: readonly TreeItemData[]) {
   const nodes: (TreeCollectionNode & { item: TreeItemData })[] = []
-  const add = (list: readonly TreeItemData[], parent: string | null) => {
-    for (const item of list) {
-      nodes.push({
-        key: item.value,
-        parent,
-        branch: item.children !== undefined,
-        item,
-      })
-      if (item.children) {
-        add(item.children, item.value)
-      }
-    }
+  for (const { item, parent } of dataRows(items, () => true)) {
+    nodes.push({
+      key: item.value,
+      parent,
+      branch: item.children !== undefined,
+      item,
+    })
   }
-  add(items, null)
   return nodes
 }
 
@@ -252,6 +253,37 @@ type TreeRow = {
   index: number
 }
 
+// Keep traversal frames in data so nesting does not consume the call stack.
+function* dataRows(
+  items: readonly TreeItemData[],
+  enter: (item: TreeItemData) => boolean
+) {
+  const pending: {
+    list: readonly TreeItemData[]
+    parent: string | null
+    level: number
+    index: number
+  }[] = [{ list: items, parent: null, level: 1, index: 0 }]
+  let index = 0
+  while (pending.length) {
+    const current = pending[pending.length - 1]
+    if (current.index === current.list.length) {
+      pending.pop()
+      continue
+    }
+    const item = current.list[current.index++]
+    yield { item, parent: current.parent, level: current.level, index: index++ }
+    if (item.children && enter(item)) {
+      pending.push({
+        list: item.children,
+        parent: item.value,
+        level: current.level + 1,
+        index: 0,
+      })
+    }
+  }
+}
+
 /**
  * The rows of tree data that show when the branches in `expanded` are open,
  * in order, for a flat rendering such as a virtualized list. Render each as
@@ -263,21 +295,7 @@ function visibleTreeRows(
   expanded: readonly string[]
 ) {
   const open = new Set(expanded)
-  const rows: TreeRow[] = []
-  const add = (
-    list: readonly TreeItemData[],
-    parent: string | null,
-    level: number
-  ) => {
-    for (const item of list) {
-      rows.push({ item, parent, level, index: rows.length })
-      if (item.children && open.has(item.value)) {
-        add(item.children, item.value, level + 1)
-      }
-    }
-  }
-  add(items, null, 1)
-  return rows
+  return Array.from(dataRows(items, (item) => open.has(item.value)))
 }
 
 export {
