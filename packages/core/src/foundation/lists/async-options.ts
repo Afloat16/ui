@@ -100,7 +100,6 @@ function createAsyncOptions<Item>(
     controller?.abort()
     const current = new AbortController()
     controller = current
-    page = next
     set({ status: "loading", error: undefined })
     load(state.query, { signal: current.signal, page: next }).then(
       (result) => {
@@ -108,6 +107,7 @@ function createAsyncOptions<Item>(
           return
         }
         controller = undefined
+        page = next
         const items = Array.isArray(result) ? result : result.items
         const hasMore = !Array.isArray(result) && !!result.hasMore
         set({

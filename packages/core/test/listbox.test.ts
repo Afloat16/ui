@@ -629,6 +629,72 @@ describe("async options", () => {
     vi.useRealTimers()
   })
 
+  test("retries a failed page before moving to the next one", async () => {
+    vi.useFakeTimers()
+    const pages: number[] = []
+    let fail = false
+    const options = createAsyncOptions(
+      async (_query, { page }) => {
+        pages.push(page)
+        if (fail) {
+          throw new Error("offline")
+        }
+        return { items: [page], hasMore: page < 2 }
+      },
+      { immediate: true }
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    fail = true
+    options.loadMore()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(options.getState().status).toBe("error")
+    fail = false
+    options.loadMore()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(pages).toEqual([0, 1, 1])
+    expect(options.getState().items).toEqual([0, 1])
+    options.loadMore()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(options.getState()).toMatchObject({
+      items: [0, 1, 2],
+      hasMore: false,
+    })
+  })
+
+  test("retries a cancelled page and ignores its late result", async () => {
+    vi.useFakeTimers()
+    const pages: number[] = []
+    let finish:
+      ((value: { items: number[]; hasMore: boolean }) => void) | undefined
+    const options = createAsyncOptions(
+      async (_query, { page }) => {
+        pages.push(page)
+        if (pages.length === 2) {
+          return new Promise<{ items: number[]; hasMore: boolean }>(
+            (resolve) => {
+              finish = resolve
+            }
+          )
+        }
+        return { items: [page], hasMore: page < 2 }
+      },
+      { immediate: true }
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    options.loadMore()
+    options.cancel()
+    options.loadMore()
+    await vi.advanceTimersByTimeAsync(0)
+    finish?.({ items: [99], hasMore: false })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(pages).toEqual([0, 1, 1])
+    expect(options.getState()).toMatchObject({
+      items: [0, 1],
+      hasMore: true,
+      status: "idle",
+    })
+  })
+
   test("waits for typing to pause and lands only the latest answer", async () => {
     vi.useFakeTimers()
     const calls: string[] = []
