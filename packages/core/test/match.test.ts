@@ -100,6 +100,49 @@ describe("match ranges", () => {
     ])
   })
 
+  test("fuzzy ranges keep whole characters outside the basic multilingual plane", () => {
+    for (const [text, query, ranges] of [
+      [
+        "🍐 pear",
+        "🍐p",
+        [
+          { start: 0, end: 2 },
+          { start: 3, end: 4 },
+        ],
+      ],
+      [
+        "a🍐 pear",
+        "a🍐p",
+        [
+          { start: 0, end: 3 },
+          { start: 4, end: 5 },
+        ],
+      ],
+      [
+        "🍐🍎 fruit",
+        "🍐🍎f",
+        [
+          { start: 0, end: 4 },
+          { start: 5, end: 6 },
+        ],
+      ],
+    ] as const) {
+      const matched = matchRanges(text, query, "fuzzy")
+      expect(matched).toEqual(ranges)
+      const segments = matchSegments(text, matched)
+      expect(segments.map((segment) => segment.text).join("")).toBe(text)
+      expect(
+        segments.every((segment) => !/[\uD800-\uDFFF]/u.test(segment.text))
+      ).toBe(true)
+    }
+  })
+
+  test("fuzzy ranking counts adjacent characters by their full width", () => {
+    expect(fuzzyScore("🍐pear bowl", "🍐pb")).toBe(
+      fuzzyScore("xpear bowl", "xpb")
+    )
+  })
+
   test("the fuzzy scorer and its ranges agree", () => {
     for (const [text, query] of [
       ["Git push", "gp"],

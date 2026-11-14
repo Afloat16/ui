@@ -31,7 +31,7 @@ function wordStartIndex(haystack: string, needle: string, from: number) {
 // at the start of a word or right after the previous one.
 function subsequenceScore(haystack: string, needle: string) {
   let position = 0
-  let previous = -2
+  let previousEnd = -1
   let bonus = 0
   let letters = 0
   for (const char of needle) {
@@ -46,11 +46,11 @@ function subsequenceScore(haystack: string, needle: string) {
     if (startsWord(haystack, found)) {
       bonus += 1
     }
-    if (found === previous + 1) {
+    if (found === previousEnd) {
       bonus += 1
     }
-    previous = found
-    position = found + 1
+    previousEnd = found + char.length
+    position = previousEnd
   }
   if (!letters) {
     return 0

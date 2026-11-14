@@ -210,11 +210,11 @@ function letterRanges(haystack: string, needle: string) {
     }
     const last = ranges.at(-1)
     if (last && last.end === found) {
-      last.end = found + 1
+      last.end = found + char.length
     } else {
-      ranges.push({ start: found, end: found + 1 })
+      ranges.push({ start: found, end: found + char.length })
     }
-    position = found + 1
+    position = found + char.length
   }
   return ranges
 }
