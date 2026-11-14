@@ -42,7 +42,7 @@ function createFocusRecovery<Props = any>(options: {
 
   const innermost = (node: EventTarget | null) => {
     for (
-      let el = node instanceof Element ? node : null;
+      let el = (node as Node | null)?.nodeType === 1 ? (node as Element) : null;
       el;
       el = el.parentElement
     ) {
@@ -56,6 +56,7 @@ function createFocusRecovery<Props = any>(options: {
   return {
     /** Tracks a bound part. Call it from the slot's `bind` and return its cleanup. */
     bind(el: HTMLElement, part: { key: string; props: Props }) {
+      const doc = el.ownerDocument
       bound.set(el, part)
       const focusin = (event: FocusEvent) => {
         if (innermost(event.target) === el) {
@@ -69,7 +70,7 @@ function createFocusRecovery<Props = any>(options: {
           if (
             holder === el &&
             el.isConnected &&
-            !el.contains(document.activeElement)
+            !el.contains(doc.activeElement)
           ) {
             holder = null
           }
@@ -79,12 +80,11 @@ function createFocusRecovery<Props = any>(options: {
       return () => {
         el.removeEventListener("focusin", focusin)
         el.removeEventListener("focusout", focusout)
-        bound.delete(el)
-        const active =
-          typeof document === "undefined" ? null : document.activeElement
+        const active = doc.activeElement
         const held =
-          el.contains(active) ||
-          (holder === el && (!active || active === document.body))
+          innermost(active) === el ||
+          (holder === el && (!active || active === doc.body))
+        bound.delete(el)
         if (holder === el) {
           holder = null
         }
@@ -93,13 +93,11 @@ function createFocusRecovery<Props = any>(options: {
         }
         const lost = { key: part.key, props: part.props, el }
         queueMicrotask(() => {
-          const now = document.activeElement
+          const now = doc.activeElement
           // Something else took focus meanwhile, like a dialog the removal opened.
           if (
-            now &&
-            now !== document.body &&
-            now.isConnected &&
-            !el.contains(now)
+            !doc.hasFocus() ||
+            (now && now !== doc.body && now.isConnected && !el.contains(now))
           ) {
             return
           }
