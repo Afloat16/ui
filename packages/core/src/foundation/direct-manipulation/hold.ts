@@ -108,6 +108,7 @@ function bindHold(el: HTMLElement, options: BindHoldOptions = {}) {
   const doc = el.ownerDocument
   const view = doc.defaultView ?? window
   const { delay = 500, tolerance = 10, keys = [" ", "Enter"] } = options
+  let bound = true
   let press: Press | undefined
 
   el.style.setProperty("--hold-delay", `${delay}ms`)
@@ -118,7 +119,10 @@ function bindHold(el: HTMLElement, options: BindHoldOptions = {}) {
     extra: Pick<Press, "pointerId" | "key">,
     listen: () => (() => void)[]
   ) {
-    if (press || options.disabled?.() || options.onPress?.(details) === false) {
+    if (!bound || press || options.disabled?.()) {
+      return false
+    }
+    if (options.onPress?.(details) === false || !bound || press) {
       return false
     }
     let count = 0
@@ -297,6 +301,7 @@ function bindHold(el: HTMLElement, options: BindHoldOptions = {}) {
     on(el, "keydown", onKeyDown),
   ]
   return () => {
+    bound = false
     stop()
     listeners.forEach((remove) => remove())
     el.style.removeProperty("--hold-delay")

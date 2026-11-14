@@ -110,7 +110,11 @@ function bindRepeatPresses(
     tolerance: Infinity,
     disabled: options.disabled,
     onPress: (press) => {
-      if (options.onPress?.(press) === false) {
+      const accepted = options.onPress?.(press)
+      if (!bound) {
+        return false
+      }
+      if (accepted === false) {
         onRefuse?.(press)
         return false
       }
