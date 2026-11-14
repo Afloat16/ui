@@ -200,11 +200,14 @@ function treeDataNodes(items: readonly TreeItemData[]) {
  */
 function treeFromPaths(paths: readonly string[]) {
   const top: TreeItemData[] = []
+  const values = new WeakMap<TreeItemData[], Set<string>>([[top, new Set()]])
   const folders = new Map<string, TreeItemData[]>()
   const folder = (path: string, label: string, into: TreeItemData[]) => {
     let children = folders.get(path)
     if (!children) {
       folders.set(path, (children = []))
+      values.set(children, new Set())
+      values.get(into)!.add(path)
       into.push({ value: path, label, children })
     }
     return children
@@ -221,7 +224,8 @@ function treeFromPaths(paths: readonly string[]) {
       prefix = prefix ? `${prefix}/${segment}` : segment
       if (index < segments.length - 1 || isFolder) {
         into = folder(prefix, segment, into)
-      } else if (!into.some((item) => item.value === prefix)) {
+      } else if (!values.get(into)!.has(prefix)) {
+        values.get(into)!.add(prefix)
         into.push({ value: prefix, label: segment })
       }
     })

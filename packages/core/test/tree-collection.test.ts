@@ -152,4 +152,81 @@ describe("treeFromPaths", () => {
       { value: "a.ts", label: "a.ts" },
     ])
   })
+
+  test("keeps sibling order when a large directory repeats file paths", () => {
+    const paths = Array.from({ length: 2_000 }, (_, index) => `src/${index}.ts`)
+    const items = treeFromPaths([...paths, ...[...paths].reverse()])
+    expect(items).toEqual([
+      {
+        value: "src",
+        label: "src",
+        children: paths.map((value, index) => ({
+          value,
+          label: `${index}.ts`,
+        })),
+      },
+    ])
+  })
+
+  test("deduplicates nested files and empty folders in their first order", () => {
+    expect(
+      treeFromPaths([
+        "src/z.ts",
+        "src/lib/a.ts",
+        "docs/",
+        "src/a.ts",
+        "src/lib/a.ts",
+        "docs/",
+        "src/lib/",
+        "src/z.ts",
+      ])
+    ).toEqual([
+      {
+        value: "src",
+        label: "src",
+        children: [
+          {
+            value: "src/lib",
+            label: "lib",
+            children: [{ value: "src/lib/a.ts", label: "a.ts" }],
+          },
+          { value: "src/z.ts", label: "z.ts" },
+          { value: "src/a.ts", label: "a.ts" },
+        ],
+      },
+      { value: "docs", label: "docs", children: [] },
+    ])
+  })
+
+  test("does not add a file over an existing folder with the same value", () => {
+    expect(treeFromPaths(["src/a.ts", "src", "src/"])).toEqual([
+      {
+        value: "src",
+        label: "src",
+        children: [{ value: "src/a.ts", label: "a.ts" }],
+      },
+    ])
+  })
+
+  test("retains a file when a later path also makes its value a folder", () => {
+    expect(treeFromPaths(["src", "src/a.ts", "src"])).toEqual([
+      {
+        value: "src",
+        label: "src",
+        children: [{ value: "src/a.ts", label: "a.ts" }],
+      },
+      { value: "src", label: "src" },
+    ])
+  })
+
+  test("deduplicates values within their parent for paths with a leading slash", () => {
+    expect(treeFromPaths(["a.ts", "/a.ts", "a.ts", "/a.ts"])).toEqual([
+      {
+        value: "",
+        label: "",
+        children: [{ value: "a.ts", label: "a.ts" }],
+      },
+      { value: "a.ts", label: "a.ts" },
+    ])
+  })
 })
