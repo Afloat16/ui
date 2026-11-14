@@ -169,6 +169,7 @@ function tokenInputApiBody(
     value: TokenInputValue
     selection: TextRange | null
   }>({ value: store.get().value, selection: null }, () => options().history)
+  let historyVersion = 0
   let messages: string[] = []
 
   const codec = () => options().codec ?? defaultCodec
@@ -220,13 +221,16 @@ function tokenInputApiBody(
     } as never)
     if (!accepted) {
       // A canceled edit the browser already made comes out of the DOM.
-      committed = before
-      pendingSelection = undefined
+      if (committed === value) {
+        committed = before
+        pendingSelection = undefined
+      }
       render()
       return false
     }
     if (record) {
       history.record({ value, selection: after ?? null }, { group })
+      historyVersion++
     }
     emit({
       type: "input",
@@ -279,6 +283,7 @@ function tokenInputApiBody(
     if (value !== committed) {
       if (!sameValue(value, committed)) {
         history.record({ value, selection: null })
+        historyVersion++
       }
       committed = value
     }
@@ -388,30 +393,42 @@ function tokenInputApiBody(
     return commit(remove(committed), { reason, event, record })
   }
 
+  function moveHistory(direction: "undo" | "redo", event?: Event) {
+    const before = committed
+    const version = historyVersion
+    const entry = history[direction]()
+    if (!entry) {
+      return false
+    }
+    const alreadyShown =
+      sameValue(before, store.get().value) &&
+      sameValue(before, normalizeValue(entry.value))
+    const accepted = commit(entry.value, {
+      reason: direction,
+      event,
+      selection: entry.selection ?? undefined,
+      record: false,
+    })
+    // A callback can record an edit or accept another history move.
+    if (
+      !accepted &&
+      !alreadyShown &&
+      historyVersion === version &&
+      committed === before
+    ) {
+      history[direction === "undo" ? "redo" : "undo"]()
+    } else {
+      historyVersion++
+    }
+    return accepted
+  }
+
   function undo(event?: Event) {
-    const entry = history.undo()
-    return (
-      !!entry &&
-      commit(entry.value, {
-        reason: "undo",
-        event,
-        selection: entry.selection ?? undefined,
-        record: false,
-      })
-    )
+    return moveHistory("undo", event)
   }
 
   function redo(event?: Event) {
-    const entry = history.redo()
-    return (
-      !!entry &&
-      commit(entry.value, {
-        reason: "redo",
-        event,
-        selection: entry.selection ?? undefined,
-        record: false,
-      })
-    )
+    return moveHistory("redo", event)
   }
 
   // The submit shortcut: `onSubmit`, else its form, which `form` can name
