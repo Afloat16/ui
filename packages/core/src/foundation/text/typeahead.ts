@@ -5,6 +5,7 @@ import { foldText } from "./match"
 // "e". Folding is remembered, since filtering and typeahead fold the same
 // labels on every keystroke.
 const normalize = (text: string) => foldText(text).trim()
+const characterKey = /^[^\p{Cc}]\p{M}*$/u
 
 /**
  * Whether a key press types a character a typeahead should search for: one
@@ -13,7 +14,10 @@ const normalize = (text: string) => foldText(text).trim()
  */
 function isTypeaheadKey(event: KeyboardEvent) {
   return (
-    event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey
+    characterKey.test(event.key) &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey
   )
 }
 
@@ -53,7 +57,7 @@ function labelOf(el: HTMLElement) {
 }
 
 function searchStart(current: number, query: string) {
-  return query.length === 1 ? current + 1 : Math.max(current, 0)
+  return characterKey.test(query) ? current + 1 : Math.max(current, 0)
 }
 
 /**
@@ -104,13 +108,13 @@ function createTypeahead(timeout = 500) {
 
   function search(key: string, labels: string[], current: number) {
     // Space only continues a query. Before one, it's the key that activates.
-    if (key.length !== 1 || (key === " " && !query)) {
+    if (!characterKey.test(key) || (key === " " && !query)) {
       return -1
     }
     clearTimeout(timer)
     timer = setTimeout(reset, timeout)
     const char = normalize(key) || key
-    stepping = char === lastKey && (stepping || query.length === 1)
+    stepping = char === lastKey && (stepping || characterKey.test(query))
     lastKey = char
     query += char
 

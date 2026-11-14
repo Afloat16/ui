@@ -282,6 +282,25 @@ describe("createListbox", () => {
     expect(press(" ").defaultPrevented).toBe(false)
   })
 
+  test.each(["𠮷", "😀", "ḍ\u0307"])(
+    "Unicode key %s moves real option focus and cycles past disabled items",
+    async (key) => {
+      const { options, press, highlighted } = render({}, [
+        { value: "first", label: `${key} first` },
+        { value: "disabled", label: `${key} disabled`, disabled: true },
+        { value: "last", label: `${key} last` },
+      ])
+      await tick()
+      options[0].focus()
+      expect(press(key).defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(options[2])
+      expect(highlighted()).toBe("last")
+      press(key)
+      expect(document.activeElement).toBe(options[0])
+      expect(highlighted()).toBe("first")
+    }
+  )
+
   test("data items render filtered, and a function filter ranks them", async () => {
     const items: ListData = [
       "Apple",
