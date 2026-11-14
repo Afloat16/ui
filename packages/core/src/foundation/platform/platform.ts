@@ -238,6 +238,11 @@ function matchesShortcut(
   shortcut: string,
   apple = isApple()
 ) {
+  // AltGraph types characters, even when it also reports Control and Alt.
+  // Apple's Option shortcuts still work when a browser reports AltGraph too.
+  if (!apple && event.getModifierState("AltGraph")) {
+    return false
+  }
   const cache = parsed[+apple]
   let keys = cache.get(shortcut)
   if (!keys) {

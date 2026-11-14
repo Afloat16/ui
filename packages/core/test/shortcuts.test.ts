@@ -19,6 +19,7 @@ function key(init: {
   meta?: boolean
   ctrl?: boolean
   alt?: boolean
+  altGraph?: boolean
   shift?: boolean
 }) {
   return {
@@ -28,6 +29,7 @@ function key(init: {
     ctrlKey: !!init.ctrl,
     altKey: !!init.alt,
     shiftKey: !!init.shift,
+    getModifierState: (name: string) => name === "AltGraph" && !!init.altGraph,
   } as KeyboardEvent
 }
 
