@@ -31,16 +31,25 @@ const isLeaf = (tree: TreeCollection, key: string) =>
  */
 function checkedLeaves(tree: TreeCollection, value: readonly string[]) {
   const leaves = new Set<string>()
+  const visited = new Set<string>()
+  const pending: string[] = []
   for (const key of value) {
     if (!tree.has(key)) {
       continue
     }
-    if (isLeaf(tree, key)) {
-      leaves.add(key)
-    } else {
-      for (const below of tree.descendants(key)) {
-        if (isLeaf(tree, below)) {
-          leaves.add(below)
+    pending.push(key)
+    while (pending.length) {
+      const current = pending.pop()!
+      if (visited.has(current)) {
+        continue
+      }
+      const children = tree.children(current)
+      if (children.length === 0) {
+        leaves.add(current)
+      } else {
+        visited.add(current)
+        for (const child of children) {
+          pending.push(child)
         }
       }
     }
