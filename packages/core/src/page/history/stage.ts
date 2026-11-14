@@ -4,6 +4,8 @@
 // like any agent step, and `revert` puts back what each control had.
 import type { AgentComponent, createAgent } from "../agent/agent"
 import { entries as registered, setterOf } from "../observe/registry"
+import { sameValue } from "../../foundation/kernel/store"
+import { current, same } from "./values"
 
 /**
  * One value to put on a control: its ref or label, the key, and the value.
@@ -53,16 +55,20 @@ async function stageChanges(
     if (!component || !component.actions.includes(setterOf(key))) {
       continue
     }
+    const target = { ref: component.ref, key }
+    const before = current(target)
+    const redacted =
+      registered.get(component.ref)?.secret && before !== "" && before != null
     const result = await agent.act({
       steps: [
         { ref: component.ref, action: setterOf(key), args: [change.value] },
       ],
     })
-    if (result.ok) {
+    if (result.ok && !sameValue(current(target), before)) {
       applied.push({
         ref: component.ref,
         key,
-        before: component[key],
+        before: redacted ? "[redacted]" : before,
         value: change.value,
       })
     }
@@ -93,7 +99,8 @@ async function stageChanges(
             await agent.act({
               steps: [{ ref, action: setterOf(key), args: [before] }],
             })
-          ).ok
+          ).ok &&
+          same(current(change), before)
         if (!done) {
           failed.push(change)
         }

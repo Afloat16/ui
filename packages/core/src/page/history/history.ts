@@ -1,11 +1,11 @@
 // Hears changes through `observe` and puts values back through the agent
 // bridge, so it wires to no control. A change made after seeking back drops
 // the entries after it, like undo in an editor.
-import { sameValue } from "../../foundation/kernel/store"
 import type { createAgent } from "../agent/agent"
 import { guardedActions } from "../agent/guard"
 import { observe, type ObservedChange } from "../observe/observe"
 import { entries as registered, setterOf } from "../observe/registry"
+import { current, same } from "./values"
 
 /**
  * One change in the history.
@@ -51,12 +51,6 @@ type HistoryOptions = {
 const idOf = (change: { ref: string; key: string }) =>
   `${change.ref}:${change.key}`
 
-// A component's value for a key now, like a checkbox's `checked`.
-const current = ({ ref, key }: { ref: string; key: string }) =>
-  (
-    registered.get(ref)?.instance.deref()?.get() as
-      Record<string, unknown> | undefined
-  )?.[key]
 // check-code: allow return-type recursive, so TypeScript cannot infer it.
 const round = (value: unknown): unknown =>
   typeof value === "number"
@@ -66,9 +60,6 @@ const round = (value: unknown): unknown =>
           Object.entries(value).map(([key, inner]) => [key, round(inner)])
         )
       : value
-// Whether two values are the same, like a date range a setter copied.
-const same = (a: unknown, b: unknown) =>
-  sameValue(a, b) || JSON.stringify(a) === JSON.stringify(b)
 const show = (value: unknown) =>
   Array.isArray(value)
     ? value.join(", ") || "none"
