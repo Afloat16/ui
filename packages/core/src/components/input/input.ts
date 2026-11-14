@@ -209,8 +209,19 @@ function fitContent(el: HTMLTextAreaElement) {
   let width = -1
   const fit = () => {
     el.style.height = "auto"
-    const borders = el.offsetHeight - el.clientHeight
-    el.style.height = `${el.scrollHeight + borders}px`
+    const style = getComputedStyle(el)
+    const outer = el.offsetHeight - el.clientHeight
+    // A content-box height leaves its padding and borders outside the size.
+    const outside =
+      style.boxSizing === "border-box"
+        ? 0
+        : [
+            style.paddingTop,
+            style.paddingBottom,
+            style.borderTopWidth,
+            style.borderBottomWidth,
+          ].reduce((sum, value) => sum + (parseFloat(value) || 0), 0)
+    el.style.height = `${Math.max(0, el.scrollHeight + outer - outside)}px`
   }
   fit()
   const unwatch = watchValue(el, fit)

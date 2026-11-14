@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, test, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { textarea } from "../src/components/input/input"
 import { attrs, bind } from "../src/foundation/kernel/part"
 import { setPlatform } from "../src/foundation/platform/platform"
 
-// Stands in for a <textarea> with a 1px border, 8px padding and 20px lines.
+// A border-box textarea with a 1px border, 8px padding and 20px lines.
 // `value` sits on its prototype like the real one, so a field can watch writes.
 class FakeTextarea extends EventTarget {
   #value = ""
@@ -91,6 +91,10 @@ function setupKeys(
   }
   return { el, instance, unbind, press, requestSubmit: el.form.requestSubmit }
 }
+
+beforeEach(() => {
+  vi.stubGlobal("getComputedStyle", () => ({ boxSizing: "border-box" }))
+})
 
 afterEach(() => {
   vi.unstubAllGlobals()
