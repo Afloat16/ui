@@ -217,8 +217,9 @@ function bindScrollPicker(
         resizes?.observe(item)
       }
     }
+    const currentItems = new Set(items)
     for (const item of observed) {
-      if (!item.isConnected) {
+      if (!currentItems.has(item)) {
         observed.delete(item)
         resizes?.unobserve(item)
       }
