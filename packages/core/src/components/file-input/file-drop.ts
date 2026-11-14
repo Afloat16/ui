@@ -107,7 +107,7 @@ async function readEntries(
         return
       }
       for (const child of batch) {
-        await visit(child)
+        await visit(child).catch(() => {})
       }
     }
   }
