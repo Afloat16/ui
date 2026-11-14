@@ -86,6 +86,13 @@ export type {
   WithGeneric,
 } from "./primitive-types"
 export { select, selects } from "./selects"
-export { heldState, sameValue, type Store, subscribeSkipping } from "./store"
+export {
+  type ChangeRequest,
+  heldState,
+  requestedChanges,
+  sameValue,
+  type Store,
+  subscribeSkipping,
+} from "./store"
 export { trusted, trustSent } from "./trusted"
 export { watchEarlier, watchers } from "./watchers"

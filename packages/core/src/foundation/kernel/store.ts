@@ -18,6 +18,14 @@
 //   installs, both after. So what a component listener changes in turn, like
 //   a tab panel starting to exit, is in place before parts look, however late
 //   it subscribed.
+import type { ChangeSource } from "./details"
+
+type ChangeRequest = {
+  value: unknown
+  previous: unknown
+  source: ChangeSource
+  status: "pending" | "committed" | "discarded"
+}
 
 // Lists a renderer handed over again because something in them changed in
 // place, like an item's label in a reactive `items` array. They hold the same
@@ -299,8 +307,14 @@ const held = new WeakMap<
     writes: () => number
     touch: () => void
     skipping: Map<object, Set<Listener>>
+    requests?: Map<string, ChangeRequest>
   }
 >()
+
+function requestedChanges(owner: object) {
+  const state = held.get(owner)!
+  return (state.requests ??= new Map<string, ChangeRequest>())
+}
 
 /**
  * Runs `listener` after the component's own listeners on every change that
@@ -372,12 +386,14 @@ type Store<State extends object> = ReturnType<typeof createStore<State>>
 
 export {
   createStore,
+  type ChangeRequest,
   heldState,
   isPlainObject,
   join,
   type Listener,
   markChangedInPlace,
   renders,
+  requestedChanges,
   sameSlotState,
   sameValue,
   standFor,

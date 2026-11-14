@@ -19,7 +19,7 @@ import type {
   PrimitiveOptions,
   ReasonFor,
 } from "./primitive-types"
-import { sameValue } from "./store"
+import { requestedChanges, sameSlotState, sameValue } from "./store"
 import { watchers } from "./watchers"
 
 type InputSource = (reason: string, event?: Event) => ChangeSource
@@ -47,7 +47,7 @@ function changeFrom<Options, State extends object>(
   source: InputSource
 ) {
   const { store, options } = context
-  const requested = new Map<string, { value: unknown; source: ChangeSource }>()
+  const requested = requestedChanges(store)
   // Changes asked of each key, so one asked from inside `on<Key>Change`, like
   // a clamp, stands over the change that called it.
   const asked = new Map<string, number>()
@@ -69,16 +69,34 @@ function changeFrom<Options, State extends object>(
       if (!(key in synced)) {
         continue
       }
-      if (sameValue((synced as Record<string, unknown>)[key], entry.value)) {
-        source = entry.source
+      const value = (synced as Record<string, unknown>)[key]
+      if (sameSlotState(value, entry.value)) {
+        if (entry.status === "pending") {
+          source = entry.source
+        }
+        entry.status = "committed"
+        entry.previous = undefined
+      } else if (
+        entry.status === "pending" &&
+        sameSlotState(value, entry.previous)
+      ) {
+        continue
+      } else {
+        entry.status = "discarded"
+        requested.delete(key)
       }
-      requested.delete(key)
     }
     return source
   })
-  if (dev) {
-    context.onDestroy(() => forgetControlled(requested))
-  }
+  context.onDestroy(() => {
+    for (const entry of requested.values()) {
+      entry.status = "discarded"
+    }
+    requested.clear()
+    if (dev) {
+      forgetControlled(requested)
+    }
+  })
 
   return <Key extends keyof State & string>(
     key: Key,
@@ -156,8 +174,18 @@ function changeFrom<Options, State extends object>(
       return false
     }
     watchers.change?.(context.id, key, value, callbackDetails, previous)
-    if (isControlled) {
-      requested.set(key, { value, source: callbackDetails.source })
+    if (isControlled && asked.get(key) === ask) {
+      const superseded = requested.get(key)
+      if (superseded) {
+        superseded.status = "discarded"
+      }
+      const committed = sameSlotState(store.get()[key], value)
+      requested.set(key, {
+        value,
+        previous: committed ? undefined : previous,
+        source: callbackDetails.source,
+        status: committed ? "committed" : "pending",
+      })
       if (dev) {
         expectControlled(
           requested,

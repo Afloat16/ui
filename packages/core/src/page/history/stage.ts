@@ -4,7 +4,11 @@
 // like any agent step, and `revert` puts back what each control had.
 import type { AgentComponent, createAgent } from "../agent/agent"
 import { entries as registered, setterOf } from "../observe/registry"
-import { sameValue } from "../../foundation/kernel/store"
+import {
+  requestedChanges,
+  sameValue,
+  type ChangeRequest,
+} from "../../foundation/kernel/store"
 import { current, same } from "./values"
 
 /**
@@ -49,13 +53,46 @@ async function stageChanges(
     before: unknown
     value: unknown
   }[] = []
-  for (const change of changes) {
+  const landed = new Map<
+    (typeof applied)[number],
+    { value: unknown; request?: ChangeRequest; index: number }
+  >()
+  let pending: {
+    change: (typeof applied)[number]
+    request: ChangeRequest
+    index: number
+  }[] = []
+  const settled = () => {
+    pending = pending.filter(({ change, request, index }) => {
+      const value = current(change)
+      if (request.status === "pending" && same(value, request.previous)) {
+        return true
+      }
+      if (request.status !== "discarded" && same(value, request.value)) {
+        const at = applied.findIndex(
+          (entry) => landed.get(entry)!.index > index
+        )
+        applied.splice(at < 0 ? applied.length : at, 0, change)
+        landed.set(change, { value, request, index })
+      }
+      return false
+    })
+    return applied
+  }
+  for (const [index, change] of changes.entries()) {
     const component = await find(change.ref)
+    settled()
     const key = change.key ?? "value"
     if (!component || !component.actions.includes(setterOf(key))) {
       continue
     }
     const target = { ref: component.ref, key }
+    const instance = registered.get(component.ref)?.instance.deref()
+    if (!instance) {
+      continue
+    }
+    const requests = requestedChanges(instance)
+    const previousRequest = requests.get(key)
     const before = current(target)
     const redacted =
       registered.get(component.ref)?.secret && before !== "" && before != null
@@ -64,24 +101,33 @@ async function stageChanges(
         { ref: component.ref, action: setterOf(key), args: [change.value] },
       ],
     })
-    if (result.ok && !sameValue(current(target), before)) {
-      applied.push({
-        ref: component.ref,
-        key,
-        before: redacted ? "[redacted]" : before,
-        value: change.value,
-      })
+    if (!result.ok) {
+      continue
+    }
+    const receipt = {
+      ...target,
+      before: redacted ? "[redacted]" : before,
+      value: change.value,
+    }
+    const latest = requests.get(key)
+    const request =
+      latest !== previousRequest && latest?.source === "agent"
+        ? latest
+        : undefined
+    const value = current(target)
+    if (!sameValue(value, before)) {
+      applied.push(receipt)
+      landed.set(receipt, { value, request, index })
+    } else if (request) {
+      pending.push({ change: receipt, request, index })
     }
   }
   let reverted = false
   return {
-    /** The changes that went on, each with the value it replaced. */
-    applied: applied as readonly {
-      ref: string
-      key: string
-      before: unknown
-      value: unknown
-    }[],
+    /** The changes that went on, including controlled values delivered since the last read. */
+    get applied() {
+      return settled() as readonly (typeof applied)[number][]
+    },
     /** Puts back what each control had, and resolves with the changes it couldn't. Runs once. */
     async revert() {
       if (reverted) {
@@ -89,12 +135,28 @@ async function stageChanges(
       }
       reverted = true
       const failed: typeof applied = []
-      for (const change of [...applied].reverse()) {
+      const checked = new Set<string>()
+      const blocked = new Set<string>()
+      for (const change of [...settled()].reverse()) {
         const { ref, key, before } = change
+        const target = `${ref}:${key}`
+        const receipt = landed.get(change)!
+        const value = current(change)
         // A secret field's value before is hidden, and "[redacted]" would land in it.
         const hidden = before === "[redacted]" && !!registered.get(ref)?.secret
+        if (!hidden && same(value, before)) {
+          continue
+        }
+        if (!checked.has(target)) {
+          checked.add(target)
+          if (receipt.request?.status === "discarded") {
+            blocked.add(target)
+          }
+        }
         const done =
           !hidden &&
+          !blocked.has(target) &&
+          same(value, receipt.value) &&
           (
             await agent.act({
               steps: [{ ref, action: setterOf(key), args: [before] }],
@@ -102,9 +164,11 @@ async function stageChanges(
           ).ok &&
           same(current(change), before)
         if (!done) {
+          blocked.add(target)
           failed.push(change)
         }
       }
+      pending = []
       return failed
     },
   }
