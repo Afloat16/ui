@@ -324,6 +324,7 @@ function createViewport<State extends object>(
       if (pointers.size > 1) {
         return
       }
+      const doc = surface.ownerDocument
       const move = (e: PointerEvent) => {
         if (!pointers.has(e.pointerId) || !gesture) {
           return
@@ -365,11 +366,21 @@ function createViewport<State extends object>(
         }
       }
       const up = (e: PointerEvent) => {
-        pointers.delete(e.pointerId)
+        if (!pointers.delete(e.pointerId)) {
+          return
+        }
         if (pointers.size) {
           begin()
         } else {
           end()
+        }
+      }
+      const lost = (e: PointerEvent) => {
+        if (
+          e.target === surface ||
+          (e.target === doc && !surface.isConnected)
+        ) {
+          up(e)
         }
       }
       const end = () => {
@@ -378,11 +389,15 @@ function createViewport<State extends object>(
         surface.removeEventListener("pointermove", move)
         surface.removeEventListener("pointerup", up)
         surface.removeEventListener("pointercancel", up)
+        surface.removeEventListener("lostpointercapture", lost)
+        doc.removeEventListener("lostpointercapture", lost)
         stop = undefined
       }
       surface.addEventListener("pointermove", move)
       surface.addEventListener("pointerup", up)
       surface.addEventListener("pointercancel", up)
+      surface.addEventListener("lostpointercapture", lost)
+      doc.addEventListener("lostpointercapture", lost)
       stop = end
     },
     /** `+` and `-` zoom at the center, `0` goes back to 100%. Returns whether it handled the key. */
