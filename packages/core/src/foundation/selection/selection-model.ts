@@ -25,6 +25,7 @@ function createKeySelection<Reason extends string>(config: {
   const { keys, set, order, selectable } = config
   // Where Shift ranges start, set by every choice made without Shift.
   let anchor: RangeAnchor | null = null
+  let anchorVersion = 0
 
   return {
     toggle(key: string, why: Why<Reason>) {
@@ -34,6 +35,7 @@ function createKeySelection<Reason extends string>(config: {
       const next = toggledKeys(keys(), key)
       if (set(next, why)) {
         anchor = { key, base: next }
+        anchorVersion++
       }
     },
     replace(key: string, why: Why<Reason>) {
@@ -44,6 +46,7 @@ function createKeySelection<Reason extends string>(config: {
         return
       }
       anchor = { key, base: [key] }
+      anchorVersion++
     },
     // Selects from the anchor to `to`. Without an anchor, the range starts at
     // `from`, the item focus was on, or at `to` itself.
@@ -53,12 +56,17 @@ function createKeySelection<Reason extends string>(config: {
       why: Why<Reason>
     ) {
       const list = order()
+      const previous = anchor
       if (!anchor || !list.includes(anchor.key)) {
         anchor = { key: from ?? to, base: keys() }
       }
+      const version = anchorVersion
       const next = rangeSelection(list, anchor, to, { additive, selectable })
-      if (!isSameKeys(next, keys())) {
-        set(next, why)
+      if (isSameKeys(next, keys()) || set(next, why)) {
+        anchorVersion++
+      } else if (anchorVersion === version) {
+        // A choice made inside the callback keeps its own anchor.
+        anchor = previous
       }
     },
     toggleAll(why: Why<Reason>) {
@@ -70,6 +78,7 @@ function createKeySelection<Reason extends string>(config: {
     anchor: () => anchor?.key ?? null,
     resetAnchor() {
       anchor = null
+      anchorVersion++
     },
   }
 }

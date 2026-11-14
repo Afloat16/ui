@@ -501,6 +501,133 @@ describe("createSelection", () => {
     expect(selection.anchor()).toBeNull()
   })
 
+  test.each(["a", null])(
+    "a canceled first range from %s leaves the next range free to start",
+    async (from) => {
+      let canceled = true
+      const { selection, value } = await setup({
+        onValueChange: (_value, details) => {
+          if (canceled) {
+            details.cancel()
+          }
+        },
+      })
+      selection.extend("c", { ...why, from, additive: false })
+      expect(value()).toEqual([])
+      expect(selection.anchor()).toBeNull()
+      canceled = false
+      selection.extend("e", { ...why, from: "b", additive: false })
+      expect(value()).toEqual(["b", "c", "e"])
+      expect(selection.anchor()).toBe("b")
+    }
+  )
+
+  test("a refused range does not replace an anchor removed from the list", async () => {
+    let canceled = false
+    const { selection, value, els, unbind } = await setup({
+      onValueChange: (_value, details) => {
+        if (canceled) {
+          details.cancel()
+        }
+      },
+    })
+    selection.choose("a", why)
+    els.get("a")!.remove()
+    unbind.get("a")!()
+    await tick()
+    canceled = true
+    selection.extend("c", { ...why, from: "b", additive: false })
+    expect(selection.anchor()).toBe("a")
+    expect(value()).toEqual(["a"])
+    canceled = false
+    selection.extend("e", { ...why, from: "c", additive: false })
+    expect(value()).toEqual(["c", "e"])
+    expect(selection.anchor()).toBe("c")
+  })
+
+  test("canceling a later range retains an accepted anchor", async () => {
+    let canceled = false
+    const { selection, value } = await setup({
+      onValueChange: (_value, details) => {
+        if (canceled) {
+          details.cancel()
+        }
+      },
+    })
+    selection.choose("b", why)
+    canceled = true
+    selection.extend("e", { ...why, from: "a", additive: false })
+    expect(value()).toEqual(["b"])
+    expect(selection.anchor()).toBe("b")
+    canceled = false
+    selection.extend("c", { ...why, from: "a", additive: false })
+    expect(value()).toEqual(["b", "c"])
+  })
+
+  test("an unchanged first range still establishes its anchor", async () => {
+    const onValueChange = vi.fn()
+    const { selection, value } = await setup({
+      defaultValue: ["b"],
+      onValueChange,
+    })
+    selection.extend("b", { ...why, from: "b", additive: false })
+    expect(onValueChange).not.toHaveBeenCalled()
+    expect(selection.anchor()).toBe("b")
+    selection.extend("e", { ...why, from: "c", additive: false })
+    expect(value()).toEqual(["b", "c", "e"])
+    expect(onValueChange).toHaveBeenCalledTimes(1)
+  })
+
+  test.each([false, true])(
+    "a choice made inside the range callback keeps its anchor, cancel: %s",
+    async (canceled) => {
+      const { selection, value } = await setup({
+        onValueChange: (next, details) => {
+          if (next.includes("a")) {
+            selection.choose("e", why)
+            if (canceled) {
+              details.cancel()
+            }
+          }
+        },
+      })
+      selection.extend("c", { ...why, from: "a", additive: false })
+      expect(value()).toEqual(["e"])
+      expect(selection.anchor()).toBe("e")
+      selection.extend("c", { ...why, from: "b", additive: false })
+      expect(value()).toEqual(["c", "e"])
+    }
+  )
+
+  test("a range accepted inside a canceled range keeps its anchor", async () => {
+    let inside = false
+    const { selection, value } = await setup({
+      onValueChange: (_next, details) => {
+        if (!inside) {
+          inside = true
+          selection.extend("e", { ...why, from: "c", additive: false })
+          inside = false
+          details.cancel()
+        }
+      },
+    })
+    selection.extend("c", { ...why, from: "a", additive: false })
+    expect(value()).toEqual(["a", "b", "c", "e"])
+    expect(selection.anchor()).toBe("a")
+  })
+
+  test("an external value inside the callback still clears the range anchor", async () => {
+    const { selection, value, instance } = await setup({
+      value: [],
+      onValueChange: () => {
+        instance.setOptions({ id: "l", multiple: true, value: ["e"] })
+      },
+    })
+    selection.extend("c", { ...why, from: "a", additive: false })
+    expect(value()).toEqual(["e"])
+    expect(selection.anchor()).toBeNull()
+  })
+
   test("single mode chooses, and toggling the selected item clears it", async () => {
     const { selection, value } = await setup({ multiple: false })
     selection.extend("c", why)
