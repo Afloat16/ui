@@ -73,7 +73,7 @@ const angles: Record<string, number> = {
 }
 
 const token =
-  /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(%|deg|grad|rad|turn)?$/
+  /^([+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?)(%|deg|grad|rad|turn)?$/
 
 // One channel's text as a number, null for `none`, or undefined when the
 // channel can't take it, like an angle on a lightness.
@@ -168,8 +168,17 @@ function parseFunction(name: string, body: string) {
     if (parts.length > 4 || parts.includes("none")) {
       return null
     }
+    const channels = parts.slice(0, 3)
+    const percentages = channels.map((part) => part.endsWith("%"))
+    if (
+      definition.space === "srgb"
+        ? percentages.some((percent) => percent !== percentages[0])
+        : !percentages[1] || !percentages[2]
+    ) {
+      return null
+    }
     return readChannels(
-      parts.slice(0, 3),
+      channels,
       definition.channels,
       parts[3],
       definition.space
@@ -197,7 +206,12 @@ function parseFunction(name: string, body: string) {
  * @experimental
  */
 function parseColor(text: string) {
-  const color: Color | null = readColor(text.trim().toLowerCase())
+  const color: Color | null = readColor(
+    text
+      .trim()
+      .replace(/[\r\n]/g, " ")
+      .toLowerCase()
+  )
   return color
 }
 
