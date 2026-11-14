@@ -97,6 +97,7 @@ function createVirtualizer(options: VirtualizerOptions) {
   let starts: number[] = []
   let dirty = true
   let snapshot: VirtualItem[] = []
+  let snapshotTotal = 0
   let total = 0
   let endedAt = -1
   // Each measured element and the row it shows now, which changes when the list sorts.
@@ -187,6 +188,7 @@ function createVirtualizer(options: VirtualizerOptions) {
         ...(index === foundIndex && { found: true as const }),
       }))
     const same =
+      total === snapshotTotal &&
       next.length === snapshot.length &&
       next.every(
         (item, i) =>
@@ -200,6 +202,7 @@ function createVirtualizer(options: VirtualizerOptions) {
       return false
     }
     snapshot = next
+    snapshotTotal = total
     return true
   }
 

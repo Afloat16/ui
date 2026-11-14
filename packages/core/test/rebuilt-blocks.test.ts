@@ -160,6 +160,86 @@ describe("createVirtualizer", () => {
     })
   })
 
+  test.each([
+    [200, false],
+    [50, false],
+    [200, true],
+    [50, true],
+  ])(
+    "publishes a total-size change to %i rows with an earlier size read of %s",
+    (nextCount, readSize) => {
+      let count = 100
+      const rows = createVirtualizer({
+        count: () => count,
+        estimate: () => 20,
+        overscan: 0,
+      })
+      const el = scroller(100, () => rows.size())
+      cleanups.push(rows.connect(el))
+      const first = rows.items()
+      const listener = vi.fn()
+      cleanups.push(rows.subscribe(listener))
+      count = nextCount
+      if (readSize) {
+        expect(rows.size()).toBe(nextCount * 20)
+      }
+      rows.refresh()
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect(rows.items()).toEqual(first)
+      expect(rows.items()).not.toBe(first)
+      expect(rows.size()).toBe(nextCount * 20)
+      const updated = rows.items()
+      rows.refresh()
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect(rows.items()).toBe(updated)
+    }
+  )
+
+  test("publishes an estimate change below the rendered rows", () => {
+    let tailSize = 20
+    const rows = createVirtualizer({
+      count: () => 100,
+      estimate: (index) => (index < 5 ? 20 : tailSize),
+      overscan: 0,
+    })
+    const el = scroller(100, () => rows.size())
+    cleanups.push(rows.connect(el))
+    const first = rows.items()
+    const listener = vi.fn()
+    cleanups.push(rows.subscribe(listener))
+    tailSize = 40
+    rows.refresh()
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(rows.items()).toEqual(first)
+    expect(rows.items()).not.toBe(first)
+    expect(rows.size()).toBe(3900)
+  })
+
+  test("publishes a reset of a measured row that has scrolled out of view", () => {
+    const rows = createVirtualizer({
+      count: () => 100,
+      estimate: () => 20,
+      overscan: 0,
+    })
+    const el = scroller(100, () => rows.size())
+    cleanups.push(rows.connect(el))
+    rows.scrollToIndex(90, { align: "start" })
+    const row = rectBox(0, 0, 300, 50, el)
+    const release = rows.measure(90, row)
+    rows.scrollToIndex(0, { align: "start" })
+    release()
+    row.remove()
+    const first = rows.items()
+    expect(rows.size()).toBe(2030)
+    const listener = vi.fn()
+    cleanups.push(rows.subscribe(listener))
+    rows.reset()
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(rows.items()).toEqual(first)
+    expect(rows.items()).not.toBe(first)
+    expect(rows.size()).toBe(2000)
+  })
+
   test("keep renders a row out of view, and scrollToIndex brings one in", () => {
     const rows = createVirtualizer({
       count: () => 1000,
